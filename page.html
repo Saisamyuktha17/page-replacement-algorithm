@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Replacement Algorithms Simulation</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background-color: rgb(212, 212, 250);
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: rgba(252, 190, 166, 0.938);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        h1, h2, h3 {
+            text-align: center;
+            color: rgba(139, 19, 59, 0.966);
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        textarea, input, select {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: border 0.3s ease;
+        }
+
+        textarea:focus, input:focus, select:focus {
+            border-color: darkgreen;
+            outline: none;
+        }
+
+        button {
+            background-color: darkgreen;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+            margin: 10px 5px 10px 0;
+        }
+
+        button:hover {
+            background-color: grey;
+            transform: scale(1.05);
+        }
+
+        .frames {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .frame {
+            width: calc(100% / 5 - 20px);
+            max-width: 100px;
+            height: 80px;
+            border: 1px solid Olive;
+            text-align: center;
+            line-height: 80px;
+            font-size: 18px;
+            margin: 10px;
+            box-sizing: border-box;
+            opacity: 0;
+            transition: opacity 0.5s ease, background-color 0.5s ease;
+            border-radius: 4px;
+        }
+
+        .frame.visible {
+            opacity: 1;
+        }
+
+        .frame.page-fault {
+            background-color: rgb(245, 229, 142);
+        }
+
+        .frame span {
+            display: block;
+        }
+
+        .output {
+            margin-top: 20px;
+        }
+
+        .result {
+            text-align: center;
+            background-color: Thistle;
+            border: 1px solid #010203;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 4px;
+            font-size: 18px;
+        }
+
+        .result strong {
+            color: #03070c;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .input-group textarea, .input-group input, .input-group select {
+            font-size: 14px;
+        }
+
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+
+            .frame {
+                width: calc(100% / 2 - 10px);
+            }
+
+            button {
+                padding: 12px 20px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Page Replacement Algorithms Simulation</h1>
+        <div class="input-group">
+            <label for="pagesInput">Enter the sequence of page references (comma separated):</label>
+            <textarea id="pagesInput" rows="3"></textarea>
+        </div>
+        <div class="input-group">
+            <label for="frameSizeInput">Enter the number of frames:</label>
+            <input type="number" id="frameSizeInput" min="1">
+        </div>
+        <div class="input-group">
+            <label for="algorithmSelect">Select Page Replacement Algorithm:</label>
+            <select id="algorithmSelect">
+                <option value="fcfs">First Come First Serve (FCFS)</option>
+                <option value="optimal">Optimal</option>
+                <option value="lru">Least Recently Used (LRU)</option>
+            </select>
+        </div>
+        <div class="buttons">
+            <button onclick="startSimulation()">Simulate</button>
+            <button onclick="pauseSimulation()">Pause</button>
+            <button onclick="resumeSimulation()">Resume</button>
+            <button onclick="resetSimulation()">Reset</button>
+        </div>
+        <div class="output" id="output">
+            <h2>Simulation Results</h2>
+        </div>
+    </div>
+
+    <script>
+        let simulationTimeouts = [];
+        let isPaused = false;
+        let currentStep = 0;
+        let pages = [];
+        let frameSize = 0;
+        let frames = [];
+        let algorithm = '';
+        let pageFaults = 0;
+
+        function startSimulation() {
+            let pagesInput = document.getElementById("pagesInput").value;
+            frameSize = parseInt(document.getElementById("frameSizeInput").value);
+            algorithm = document.getElementById("algorithmSelect").value;
+
+            pages = pagesInput.split(',').map(num => parseInt(num.trim()));
+            frames = new Array(frameSize).fill(-1);
+            pageFaults = 0;
+            currentStep = 0;
+            isPaused = false;
+
+            let outputDiv = document.getElementById("output");
+            outputDiv.innerHTML = ""; // Clear previous output
+
+            outputDiv.innerHTML += `<p><strong>Sequence of page references:</strong> [${pages.join(', ')}]</p>`;
+            outputDiv.innerHTML += `<p><strong>Number of frames:</strong> ${frameSize}</p>`;
+
+            switch (algorithm) {
+                case "fcfs":
+                    outputDiv.innerHTML += `<h3>First Come First Serve (FCFS)</h3>`;
+                    simulateFCFS();
+                    break;
+                case "optimal":
+                    outputDiv.innerHTML += `<h3>Optimal</h3>`;
+                    simulateOptimal();
+                    break;
+                case "lru":
+                    outputDiv.innerHTML += `<h3>Least Recently Used (LRU)</h3>`;
+                    simulateLRU();
+                    break;
+                default:
+                    outputDiv.innerHTML += `<p>No algorithm selected.</p>`;
+                    break;
+            }
+        }
+
+        function simulateFCFS() {
+            displayFrames(frames);
+            simulationTimeouts = [];
+
+            for (let i = currentStep; i < pages.length; i++) {
+                simulationTimeouts.push(setTimeout(() => {
+                    if (isPaused) return;
+                    let page = pages[i];
+                    let pageFound = frames.includes(page);
+
+                    if (!pageFound) {
+                        frames[currentStep % frameSize] = page;
+                        pageFaults++;
+                    }
+
+                    displayFrames(frames, !pageFound);
+                    currentStep++;
+
+                    if (currentStep === pages.length) {
+                        setTimeout(() => {
+                            displayResult(`Total number of Page Faults : ${pageFaults}`);
+                        }, 1500);
+                    }
+                }, (i - currentStep + 1) * 1500));
+            }
+        }
+
+        function simulateOptimal() {
+            displayFrames(frames);
+            simulationTimeouts = [];
+
+            for (let i = currentStep; i < pages.length; i++) {
+                simulationTimeouts.push(setTimeout(() => {
+                    if (isPaused) return;
+                    let page = pages[i];
+                    let pageFound = frames.includes(page);
+
+                    if (!pageFound) {
+                        let farthestIndex = -1;
+                        let farthestPage = frames[0];
+
+                        for (let j = 0; j < frameSize; j++) {
+                            let nextPageIndex = i + 1;
+                            while (nextPageIndex < pages.length && pages[nextPageIndex] !== frames[j]) {
+                                nextPageIndex++;
+                            }
+
+                            if (nextPageIndex > farthestIndex) {
+                                farthestIndex = nextPageIndex;
+                                farthestPage = frames[j];
+                            }
+                        }
+
+                        let replaceIndex = frames.indexOf(farthestPage);
+                        frames[replaceIndex] = page;
+                        pageFaults++;
+                    }
+
+                    displayFrames(frames, !pageFound);
+                    currentStep++;
+
+                    if (currentStep === pages.length) {
+                        setTimeout(() => {
+                            displayResult(`Total number of Page Faults : ${pageFaults}`);
+                        }, 1500);
+                    }
+                }, (i - currentStep + 1) * 1500));
+            }
+        }
+
+        function simulateLRU() {
+    let lruQueue = [];
+    displayFrames(frames);
+    simulationTimeouts = [];
+
+    for (let i = currentStep; i < pages.length; i++) {
+        simulationTimeouts.push(setTimeout(() => {
+            if (isPaused) return;
+            let page = pages[i];
+            let pageFound = frames.includes(page);
+
+            if (!pageFound) {
+                // Page fault occurs
+                if (frames.includes(-1)) {
+                    // There's an empty frame, use it
+                    let emptyIndex = frames.indexOf(-1);
+                    frames[emptyIndex] = page;
+                } else {
+                    // No empty frame, replace LRU page
+                    let lruPage = lruQueue.shift();
+                    let lruIndex = frames.indexOf(lruPage);
+                    frames[lruIndex] = page;
+                }
+                pageFaults++;
+                lruQueue.push(page);
+            } else {
+                // Page is already in frame, update LRU queue
+                let index = lruQueue.indexOf(page);
+                lruQueue.splice(index, 1);
+                lruQueue.push(page);
+            }
+
+            displayFrames(frames, !pageFound);
+            currentStep++;
+
+            if (currentStep === pages.length) {
+                setTimeout(() => {
+                    displayResult(`Total number of Page Faults : ${pageFaults}`);
+                }, 1500);
+            }
+        }, (i - currentStep + 1) * 1500));
+    }
+}
+
+
+        function displayFrames(frames, isPageFault = false) {
+            let outputDiv = document.getElementById("output");
+
+            // Clear previous frames display
+            outputDiv.innerHTML += "<div class='frames'></div>";
+            let framesDiv = outputDiv.querySelector('.frames:last-child');
+
+            // Adjust frame width based on frameSize
+            let frameWidth = calculateFrameWidth(frames.length);
+
+            frames.forEach((frame, index) => {
+                let frameDiv = document.createElement('div');
+                frameDiv.classList.add('frame');
+                frameDiv.style.width = frameWidth;
+                frameDiv.innerHTML = `<span>${frame !== -1 ? frame : ''}</span>`;
+                if (isPageFault) frameDiv.classList.add('page-fault');
+                framesDiv.appendChild(frameDiv);
+
+                // Animate frame display
+                setTimeout(() => {
+                    frameDiv.classList.add('visible');
+                }, 500 * index); // Delay animation for each frame (500 milliseconds delay)
+            });
+
+            // Append new frames display
+            outputDiv.appendChild(framesDiv);
+
+            // Scroll to the new output
+            framesDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function calculateFrameWidth(frameCount) {
+            if (frameCount <= 5) {
+                return `calc(100% / ${frameCount} - 20px)`;
+            } else {
+                return 'calc(100% / 5 - 20px)'; // Limit maximum frames per row
+            }
+        }
+
+        function pauseSimulation() {
+            isPaused = true;
+            simulationTimeouts.forEach(timeout => clearTimeout(timeout));
+        }
+
+        function resumeSimulation() {
+            isPaused = false;
+            switch (algorithm) {
+                case "fcfs":
+                    simulateFCFS();
+                    break;
+                case "optimal":
+                    simulateOptimal();
+                    break;
+                case "lru":
+                    simulateLRU();
+                    break;
+            }
+        }
+
+        function resetSimulation() {
+            isPaused = false;
+            simulationTimeouts.forEach(timeout => clearTimeout(timeout));
+            simulationTimeouts = [];
+            document.getElementById("output").innerHTML = '<h2>Simulation Results</h2>';
+            currentStep = 0;
+        }
+
+        function displayResult(resultText) {
+            let outputDiv = document.getElementById("output");
+            let resultDiv = document.createElement("div");
+            resultDiv.classList.add("result");
+            resultDiv.innerHTML = `<strong>${resultText}</strong>`;
+            outputDiv.appendChild(resultDiv);
+
+            // Scroll to the new result
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    </script>
+</body>
+</html>
